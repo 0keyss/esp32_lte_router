@@ -1,0 +1,2 @@
+dependencies:
+  espressif/esp_modem: "^2.0.1"
