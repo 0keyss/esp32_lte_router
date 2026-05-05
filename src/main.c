@@ -1,5 +1,6 @@
 #include <string.h>
 #include <inttypes.h>
+#include <assert.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -12,14 +13,11 @@
 #include "esp_netif.h"
 #include "esp_netif_ppp.h"
 #include "nvs_flash.h"
+#include "esp_err.h"
 
 #include "esp_modem_api.h"
 #include "esp_modem_config.h"
 #include "esp_modem_dce_config.h"
-
-#include "lwip/sockets.h"
-#include "lwip/netdb.h"
-
 
 #define MODEM_UART_TX       27
 #define MODEM_UART_RX       26
@@ -34,71 +32,10 @@
 #define MODEM_APN           "internet"
 
 static const char *TAG = "lte_pppos";
+
 static EventGroupHandle_t event_group;
 static const int CONNECT_BIT = BIT0;
-static const int STOP_BIT = BIT1;
-
-
-static void http_test_task(void *pv)
-{
-    const char *host = "example.org";
-    const char *port = "80";
-    const char *request =
-        "GET / HTTP/1.1\r\n"
-        "Host: example.org\r\n"
-        "Connection: close\r\n"
-        "\r\n";
-
-    struct addrinfo hints = {
-        .ai_family = AF_INET,
-        .ai_socktype = SOCK_STREAM,
-    };
-    struct addrinfo *res = NULL;
-
-    ESP_LOGI(TAG, "Resolving %s...", host);
-    int err = getaddrinfo(host, port, &hints, &res);
-    if (err != 0 || res == NULL) {
-        ESP_LOGE(TAG, "DNS lookup failed err=%d", err);
-        vTaskDelete(NULL);
-        return;
-    }
-
-    int s = socket(res->ai_family, res->ai_socktype, 0);
-    if (s < 0) {
-        ESP_LOGE(TAG, "Failed to allocate socket");
-        freeaddrinfo(res);
-        vTaskDelete(NULL);
-        return;
-    }
-
-    err = connect(s, res->ai_addr, res->ai_addrlen);
-    freeaddrinfo(res);
-    if (err != 0) {
-        ESP_LOGE(TAG, "Socket connect failed err=%d", err);
-        close(s);
-        vTaskDelete(NULL);
-        return;
-    }
-
-    ESP_LOGI(TAG, "Connected, sending HTTP GET...");
-    if (write(s, request, strlen(request)) < 0) {
-        ESP_LOGE(TAG, "Write failed");
-        close(s);
-        vTaskDelete(NULL);
-        return;
-    }
-
-    char buf[256];
-    int r;
-    while ((r = read(s, buf, sizeof(buf) - 1)) > 0) {
-        buf[r] = 0;
-        ESP_LOGI(TAG, "HTTP chunk:\n%s", buf);
-    }
-
-    ESP_LOGI(TAG, "HTTP test done");
-    close(s);
-    vTaskDelete(NULL);
-}
+static const int STOP_BIT    = BIT1;
 
 static void modem_power_on(void)
 {
@@ -146,6 +83,42 @@ static void on_ppp_event(void *arg, esp_event_base_t event_base, int32_t event_i
     }
 }
 
+static esp_err_t send_at(esp_modem_dce_t *dce, const char *cmd, int timeout_ms)
+{
+    char resp[256];
+    memset(resp, 0, sizeof(resp));
+
+    ESP_LOGI(TAG, "AT> %s", cmd);
+
+    esp_err_t err = esp_modem_at(dce, cmd, resp, timeout_ms);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "AT failed for \"%s\": %s", cmd, esp_err_to_name(err));
+        return err;
+    }
+
+    resp[sizeof(resp) - 1] = '\0';
+    ESP_LOGI(TAG, "AT< %s", resp);
+    return ESP_OK;
+}
+
+static esp_err_t wait_for_at_ready(esp_modem_dce_t *dce)
+{
+    const int attempts = 12;
+
+    for (int i = 0; i < attempts; i++) {
+        ESP_LOGI(TAG, "Waiting for modem AT ready... attempt %d/%d", i + 1, attempts);
+
+        if (send_at(dce, "AT", 2000) == ESP_OK) {
+            ESP_LOGI(TAG, "Modem is AT-ready");
+            return ESP_OK;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+
+    return ESP_ERR_TIMEOUT;
+}
+
 void app_main(void)
 {
     ESP_ERROR_CHECK(nvs_flash_init());
@@ -153,9 +126,10 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     event_group = xEventGroupCreate();
+    assert(event_group);
 
     modem_power_on();
-    vTaskDelay(pdMS_TO_TICKS(5000));
+    vTaskDelay(pdMS_TO_TICKS(12000));
 
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &on_ip_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, &on_ppp_event, NULL));
@@ -180,25 +154,44 @@ void app_main(void)
     esp_modem_dce_t *dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM7600, &dte_config, &dce_config, esp_netif);
     if (!dce) {
         ESP_LOGE(TAG, "Failed to create modem DCE");
+        esp_netif_destroy(esp_netif);
         return;
     }
 
     vTaskDelay(pdMS_TO_TICKS(2000));
 
-    int rssi = 0, ber = 0;
-    if (esp_modem_get_signal_quality(dce, &rssi, &ber) == ESP_OK) {
-        ESP_LOGI(TAG, "Signal quality: rssi=%d ber=%d", rssi, ber);
-    } else {
-        ESP_LOGW(TAG, "Cannot read signal quality");
+    ESP_LOGI(TAG, "Starting AT debug sequence...");
+
+    if (wait_for_at_ready(dce) != ESP_OK) {
+        ESP_LOGE(TAG, "Modem does not respond to AT after retries");
+        goto cleanup;
     }
 
-    ESP_LOGI(TAG, "Switching modem to data mode...");
+    if (send_at(dce, "ATI", 5000) != ESP_OK) {
+        ESP_LOGW(TAG, "Cannot read ATI");
+    }
+
+    if (send_at(dce, "AT+CSQ", 5000) != ESP_OK) {
+        ESP_LOGW(TAG, "Cannot read CSQ");
+    }
+
+    if (send_at(dce, "AT+CREG?", 5000) != ESP_OK) {
+        ESP_LOGW(TAG, "Cannot read CREG");
+    }
+
+    if (send_at(dce, "AT+CGREG?", 5000) != ESP_OK) {
+        ESP_LOGW(TAG, "Cannot read CGREG");
+    }
+
+    if (send_at(dce, "AT+CGATT?", 5000) != ESP_OK) {
+        ESP_LOGW(TAG, "Cannot read CGATT");
+    }
+
+    ESP_LOGI(TAG, "Trying to switch modem to data mode...");
     esp_err_t err = esp_modem_set_mode(dce, ESP_MODEM_MODE_DATA);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set data mode: %s", esp_err_to_name(err));
-        esp_modem_destroy(dce);
-        esp_netif_destroy(esp_netif);
-        return;
+        goto cleanup;
     }
 
     EventBits_t bits = xEventGroupWaitBits(
@@ -210,11 +203,20 @@ void app_main(void)
     );
 
     if (bits & CONNECT_BIT) {
-        ESP_LOGI(TAG, "PPP connected, starting HTTP test...");
-        xTaskCreate(http_test_task, "http_test", 4096, NULL, 5, NULL);
+        ESP_LOGI(TAG, "PPP connected");
+    } else if (bits & STOP_BIT) {
+        ESP_LOGE(TAG, "PPP stopped by user/error");
     } else {
         ESP_LOGE(TAG, "PPP connect timeout");
     }
+
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+
+cleanup:
+    esp_modem_destroy(dce);
+    esp_netif_destroy(esp_netif);
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
