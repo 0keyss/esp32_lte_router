@@ -1806,10 +1806,8 @@ CONFIG_ESP_INT_WDT_CHECK_CPU1=y
 CONFIG_ESP_TASK_WDT_EN=y
 # default:
 CONFIG_ESP_TASK_WDT_INIT=y
-# default:
-# CONFIG_ESP_TASK_WDT_PANIC is not set
-# default:
-CONFIG_ESP_TASK_WDT_TIMEOUT_S=5
+CONFIG_ESP_TASK_WDT_PANIC=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=30
 # default:
 CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=y
 # default:
@@ -2392,8 +2390,10 @@ CONFIG_LWIP_IP6_FRAG=y
 # CONFIG_LWIP_IP6_REASSEMBLY is not set
 # default:
 CONFIG_LWIP_IP_REASS_MAX_PBUFS=10
+CONFIG_LWIP_IP_FORWARD=y
+CONFIG_LWIP_IPV4_NAPT=y
 # default:
-# CONFIG_LWIP_IP_FORWARD is not set
+CONFIG_LWIP_IPV4_NAPT_PORTMAP=y
 # default:
 # CONFIG_LWIP_STATS is not set
 # default:
@@ -2548,8 +2548,32 @@ CONFIG_LWIP_IPV6_ND6_NUM_ROUTERS=3
 CONFIG_LWIP_IPV6_ND6_NUM_DESTINATIONS=10
 # default:
 # CONFIG_LWIP_IPV6_ND6_ROUTE_INFO_OPTION_SUPPORT is not set
+CONFIG_LWIP_PPP_SUPPORT=y
 # default:
-# CONFIG_LWIP_PPP_SUPPORT is not set
+CONFIG_LWIP_PPP_ENABLE_IPV4=y
+# default:
+CONFIG_LWIP_PPP_ENABLE_IPV6=y
+# default:
+# CONFIG_LWIP_PPP_NOTIFY_PHASE_SUPPORT is not set
+# default:
+# CONFIG_LWIP_PPP_PAP_SUPPORT is not set
+# default:
+# CONFIG_LWIP_PPP_CHAP_SUPPORT is not set
+# default:
+# CONFIG_LWIP_PPP_MSCHAP_SUPPORT is not set
+# default:
+# CONFIG_LWIP_PPP_MPPE_SUPPORT is not set
+# default:
+# CONFIG_LWIP_PPP_SERVER_SUPPORT is not set
+# default:
+CONFIG_LWIP_PPP_VJ_HEADER_COMPRESSION=y
+CONFIG_LWIP_ENABLE_LCP_ECHO=y
+CONFIG_LWIP_LCP_ECHOINTERVAL=10
+CONFIG_LWIP_LCP_MAXECHOFAILS=5
+# default:
+# CONFIG_LWIP_PPP_DEBUG_ON is not set
+# default:
+# CONFIG_LWIP_USE_EXTERNAL_MBEDTLS is not set
 # default:
 # CONFIG_LWIP_SLIP_SUPPORT is not set
 
@@ -2657,8 +2681,47 @@ CONFIG_LWIP_HOOK_IP6_INPUT_DEFAULT=y
 # CONFIG_LWIP_HOOK_IP6_INPUT_CUSTOM is not set
 # end of Hooks
 
+CONFIG_LWIP_DEBUG=y
 # default:
-# CONFIG_LWIP_DEBUG is not set
+# CONFIG_LWIP_DEBUG_ESP_LOG is not set
+# default:
+# CONFIG_LWIP_NETIF_DEBUG is not set
+# default:
+# CONFIG_LWIP_PBUF_DEBUG is not set
+# default:
+# CONFIG_LWIP_ETHARP_DEBUG is not set
+# default:
+# CONFIG_LWIP_API_LIB_DEBUG is not set
+# default:
+# CONFIG_LWIP_SOCKETS_DEBUG is not set
+# default:
+# CONFIG_LWIP_IP_DEBUG is not set
+# default:
+# CONFIG_LWIP_ICMP_DEBUG is not set
+# default:
+# CONFIG_LWIP_DHCP_STATE_DEBUG is not set
+# default:
+# CONFIG_LWIP_DHCP_DEBUG is not set
+# default:
+# CONFIG_LWIP_IP6_DEBUG is not set
+# default:
+# CONFIG_LWIP_ICMP6_DEBUG is not set
+# default:
+# CONFIG_LWIP_TCP_DEBUG is not set
+# default:
+# CONFIG_LWIP_UDP_DEBUG is not set
+# default:
+# CONFIG_LWIP_SNTP_DEBUG is not set
+# default:
+# CONFIG_LWIP_DNS_DEBUG is not set
+# default:
+# CONFIG_LWIP_NAPT_DEBUG is not set
+# default:
+# CONFIG_LWIP_BRIDGEIF_DEBUG is not set
+# default:
+# CONFIG_LWIP_BRIDGEIF_FDB_DEBUG is not set
+# default:
+# CONFIG_LWIP_BRIDGEIF_FW_DEBUG is not set
 # end of LWIP
 
 #
@@ -3285,6 +3348,33 @@ CONFIG_WIFI_PROV_STA_ALL_CHANNEL_SCAN=y
 # default:
 # CONFIG_WIFI_PROV_STA_FAST_SCAN is not set
 # end of Wi-Fi Provisioning Manager
+
+#
+# esp-modem
+#
+# default:
+CONFIG_ESP_MODEM_CMUX_DEFRAGMENT_PAYLOAD=y
+# default:
+# CONFIG_ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED is not set
+# default:
+CONFIG_ESP_MODEM_CMUX_DELAY_AFTER_DLCI_SETUP=0
+# default:
+# CONFIG_ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY is not set
+# default:
+# CONFIG_ESP_MODEM_ADD_CUSTOM_MODULE is not set
+# default:
+CONFIG_ESP_MODEM_C_API_STR_MAX=128
+# default:
+# CONFIG_ESP_MODEM_URC_HANDLER is not set
+# default:
+# CONFIG_ESP_MODEM_PPP_ESCAPE_BEFORE_EXIT is not set
+# default:
+# CONFIG_ESP_MODEM_ADD_DEBUG_LOGS is not set
+# default:
+# CONFIG_ESP_MODEM_ENABLE_DEVELOPMENT_MODE is not set
+# default:
+CONFIG_ESP_MODEM_USE_PPP_MODE=y
+# end of esp-modem
 # end of Component config
 
 # default:
